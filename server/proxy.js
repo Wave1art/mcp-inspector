@@ -2,9 +2,18 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 function createMcpProxy(state) {
   return createProxyMiddleware({
-    router: () => state.mcpUrl,
+    router: () => {
+      // Extract just the origin (scheme + host + port) from the full mcpUrl
+      const url = new URL(state.mcpUrl);
+      return url.origin;
+    },
     changeOrigin: true,
-    pathRewrite: { '^/mcp': '/mcp' },
+    pathRewrite: () => {
+      // Rewrite the request path to the path portion of the configured mcpUrl
+      // e.g. if mcpUrl is http://127.0.0.1:6277/mcp, rewrite to /mcp
+      const url = new URL(state.mcpUrl);
+      return url.pathname;
+    },
     on: {
       proxyReq: (proxyReq, req) => {
         // Inject OAuth bearer token if available
