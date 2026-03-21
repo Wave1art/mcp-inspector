@@ -1,4 +1,4 @@
-import { Component, input, signal, computed } from '@angular/core';
+import { Component, input, signal, computed, effect } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -421,7 +421,15 @@ export class ToolResponseComponent {
   currentMode = signal<ResponseViewMode>('json');
   activeTab = signal(0);
 
-  constructor(private sanitizer: DomSanitizer) {}
+  constructor(private sanitizer: DomSanitizer) {
+    // Auto-select the best view mode when a new result arrives
+    effect(() => {
+      const detected = this.detectedMode();
+      if (detected !== 'json') {
+        this.currentMode.set(detected);
+      }
+    });
+  }
 
   /**
    * Extract the core content from the MCP result.
@@ -526,9 +534,6 @@ export class ToolResponseComponent {
     if (detected === 'cards') modes.push('cards', 'table');
     if (detected === 'markdown') modes.push('markdown');
     if (detected === 'text') modes.push('text');
-    if (this.currentMode() === 'json' && detected !== 'json') {
-      this.currentMode.set(detected);
-    }
     return modes;
   });
 
