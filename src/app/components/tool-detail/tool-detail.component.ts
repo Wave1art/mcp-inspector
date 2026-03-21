@@ -1,4 +1,4 @@
-import { Component, signal, computed, inject } from '@angular/core';
+import { Component, signal, computed, inject, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -73,6 +73,7 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
                 [disabled]="mcp.calling()">
                 <mat-icon>play_arrow</mat-icon>
                 {{ mcp.calling() ? 'Calling...' : 'Call Tool' }}
+                <span class="shortcut-hint">{{ isMac ? '⌘' : 'Ctrl' }}+↵</span>
               </button>
               <button mat-stroked-button (click)="formatJson()" matTooltip="Format JSON">
                 <mat-icon>auto_fix_high</mat-icon>
@@ -261,6 +262,13 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
 
       mat-icon { margin-right: 4px; }
 
+      .shortcut-hint {
+        margin-left: 8px;
+        font-size: 9px;
+        opacity: 0.6;
+        font-weight: 400;
+      }
+
       &:disabled { opacity: 0.5; }
     }
 
@@ -287,8 +295,19 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
 export class ToolDetailComponent {
   private dialog = inject(MatDialog);
 
+  readonly isMac = navigator.platform.toUpperCase().includes('MAC');
   argsJson = signal('{}');
   private _lastToolName: string | null = null;
+
+  @HostListener('window:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+      event.preventDefault();
+      if (this.mcp.selectedTool() && !this.mcp.calling()) {
+        this.callTool();
+      }
+    }
+  }
 
   readonly params = computed(() => {
     const tool = this.mcp.selectedTool();
