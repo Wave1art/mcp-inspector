@@ -236,6 +236,22 @@ export class McpService {
       this.sessionId.set(resp.headers.get('mcp-session-id'));
     }
 
+    const contentType = resp.headers.get('content-type') || '';
+
+    // Handle SSE streams by reading line-by-line
+    if (contentType.includes('text/event-stream')) {
+      const result = await this.readSSEResponse(resp, id);
+      if (result) {
+        this.log.addEntry('in', method, result);
+        if ((result as { error?: unknown }).error) {
+          throw new Error(JSON.stringify((result as { error: unknown }).error));
+        }
+        return (result as { result: unknown }).result;
+      }
+      throw new Error(`No matching response in SSE stream for ${method}`);
+    }
+
+    // Plain JSON response
     const text = await resp.text();
     const result = this.parseSSE(text);
 
@@ -261,6 +277,45 @@ export class McpService {
     if (sid) headers['mcp-session-id'] = sid;
 
     await fetch('/mcp', { method: 'POST', headers, body: JSON.stringify(body) });
+  }
+
+  private async readSSEResponse(resp: Response, requestId: number): Promise<unknown> {
+    const reader = resp.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      // Keep the last (possibly incomplete) line in the buffer
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const parsed = JSON.parse(line.slice(6));
+            // Return the response that matches our request ID
+            if (parsed.id === requestId) {
+              reader.cancel();
+              return parsed;
+            }
+          } catch { /* skip malformed data lines */ }
+        }
+      }
+    }
+
+    // Process any remaining buffer
+    if (buffer.startsWith('data: ')) {
+      try {
+        const parsed = JSON.parse(buffer.slice(6));
+        if (parsed.id === requestId) return parsed;
+      } catch { /* skip */ }
+    }
+
+    return null;
   }
 
   private parseSSE(text: string): unknown {
