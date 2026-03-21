@@ -70,7 +70,7 @@ export class McpService {
   readonly selectedToolIndex = signal<number>(-1);
   readonly sessionId = signal<string | null>(null);
   readonly serverInfo = signal<McpServerInfo | null>(null);
-  readonly mcpUrl = signal<string>('http://127.0.0.1:6277');
+  readonly mcpUrl = signal<string>('http://127.0.0.1:6277/mcp');
   readonly lastCallResult = signal<{ data: unknown; isError: boolean } | null>(null);
   readonly calling = signal<boolean>(false);
   readonly collapsedGroups = signal<Set<string>>(new Set());

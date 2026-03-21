@@ -47,7 +47,7 @@ Options:
 
 // Derive MCP URL
 if (!config.mcpUrl) {
-  config.mcpUrl = `http://127.0.0.1:${config.mcpPort}`;
+  config.mcpUrl = `http://127.0.0.1:${config.mcpPort}/mcp`;
 }
 
 // Start server
