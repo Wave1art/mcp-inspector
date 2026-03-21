@@ -1,0 +1,124 @@
+@use '@angular/material' as mat;
+
+html {
+  height: 100%;
+  @include mat.theme((
+    color: (
+      primary: mat.$azure-palette,
+      tertiary: mat.$blue-palette,
+    ),
+    typography: Roboto,
+    density: -1,
+  ));
+}
+
+/* ── Light theme (default) ── */
+:root, [data-theme="light"] {
+  --bg-primary: #f5f5f7;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #eaeaef;
+  --bg-input: #ffffff;
+  --bg-hover: #e8e8ee;
+  --border: #d4d4dc;
+  --border-active: #a0a0b8;
+  --text-primary: #1a1a2e;
+  --text-secondary: #555570;
+  --text-muted: #8888a0;
+  --accent: #3b5ccc;
+  --accent-hover: #4a6be0;
+  --accent-dim: #e0e6f8;
+  --accent-text: #ffffff;
+  --green: #16a34a;
+  --green-dim: #dcfce7;
+  --green-text: #15803d;
+  --red: #dc2626;
+  --red-dim: #fee2e2;
+  --red-text: #b91c1c;
+  --amber: #b45309;
+  --amber-dim: #fef3c7;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --panel-header-bg: #f0f0f5;
+  --log-out-bg: #e8ecf8;
+  --log-out-text: #3b5ccc;
+  --log-in-bg: #dcfce7;
+  --log-in-text: #15803d;
+  --log-err-bg: #fee2e2;
+  --log-err-text: #b91c1c;
+  --active-bg: #dce3f8;
+  --active-border: var(--accent);
+  --scrollbar-thumb: #c0c0cc;
+  --scrollbar-track: transparent;
+  color-scheme: light;
+}
+
+/* ── Dark theme ── */
+[data-theme="dark"] {
+  --bg-primary: #0d0d14;
+  --bg-secondary: #14141e;
+  --bg-tertiary: #1c1c2a;
+  --bg-input: #10101a;
+  --bg-hover: #24243a;
+  --border: #2a2a3e;
+  --border-active: #4a4a6a;
+  --text-primary: #e4e4ef;
+  --text-secondary: #9090aa;
+  --text-muted: #606078;
+  --accent: #6c8aff;
+  --accent-hover: #7d98ff;
+  --accent-dim: #1e2540;
+  --accent-text: #000000;
+  --green: #4ade80;
+  --green-dim: #0f2918;
+  --green-text: #4ade80;
+  --red: #f87171;
+  --red-dim: #2a1010;
+  --red-text: #f87171;
+  --amber: #fbbf24;
+  --amber-dim: #2a2010;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  --panel-header-bg: #16161f;
+  --log-out-bg: #1e2540;
+  --log-out-text: #6c8aff;
+  --log-in-bg: #0f2918;
+  --log-in-text: #4ade80;
+  --log-err-bg: #2a1010;
+  --log-err-text: #f87171;
+  --active-bg: #1e2540;
+  --active-border: #6c8aff;
+  --scrollbar-thumb: #333346;
+  --scrollbar-track: transparent;
+  color-scheme: dark;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  height: 100vh;
+  overflow: hidden;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+
+/* Material overrides for our theme */
+.mat-mdc-dialog-container {
+  --mdc-dialog-container-color: var(--bg-secondary) !important;
+}
+
+.mat-mdc-form-field {
+  --mdc-outlined-text-field-outline-color: var(--border);
+  --mdc-outlined-text-field-focus-outline-color: var(--accent);
+  --mdc-outlined-text-field-input-text-color: var(--text-primary);
+  --mdc-outlined-text-field-label-text-color: var(--text-muted);
+}
+
+/* Mono font utility */
+.mono { font-family: 'JetBrains Mono', monospace; }
