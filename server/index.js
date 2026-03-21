@@ -42,7 +42,8 @@ function startServer({ mcpUrl, inspectorPort, authMode, distPath }) {
     app.use('/api/oauth', createOAuthRouter(state, inspectorPort));
 
     // MCP proxy - must come after API routes
-    app.use('/mcp', createMcpProxy(state));
+    // Use all() to handle POST, GET, DELETE etc. at the /mcp path
+    app.all('/mcp', createMcpProxy(state));
 
     // Serve Angular dist
     app.use(express.static(distPath));
