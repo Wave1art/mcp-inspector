@@ -20,16 +20,16 @@ function createMcpProxy(state) {
         fwdHeaders['authorization'] = `Bearer ${state.accessToken}`;
       }
 
-      // Collect request body
-      const chunks = [];
-      for await (const chunk of req) chunks.push(chunk);
-      const body = Buffer.concat(chunks);
+      // Use the already-parsed body (express.json() consumed the stream)
+      const body = req.body && Object.keys(req.body).length > 0
+        ? Buffer.from(JSON.stringify(req.body))
+        : undefined;
 
       // Forward to MCP server
       const upstream = await fetch(targetUrl, {
         method: req.method,
         headers: fwdHeaders,
-        body: body.length > 0 ? body : undefined,
+        body: body || undefined,
         // Don't follow redirects — surface them as errors
         redirect: 'error',
       });
