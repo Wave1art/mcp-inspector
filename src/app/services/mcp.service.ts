@@ -165,7 +165,16 @@ export class McpService {
     this.calling.set(true);
     this.lastCallResult.set(null);
     try {
-      const args = JSON.parse(argsJson);
+      let args: unknown;
+      try {
+        args = JSON.parse(argsJson);
+      } catch (parseErr) {
+        this.lastCallResult.set({
+          data: { error: `Invalid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}` },
+          isError: true,
+        });
+        return;
+      }
       const result = await this.mcpRequest('tools/call', { name, arguments: args }) as { isError?: boolean; content?: unknown[] };
       this.lastCallResult.set({
         data: result,

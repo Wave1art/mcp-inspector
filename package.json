@@ -28,7 +28,6 @@
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
     "express": "^5.2.1",
-    "http-proxy-middleware": "^3.0.5",
     "marked": "^17.0.5",
     "open": "^11.0.0",
     "rxjs": "~7.8.0",

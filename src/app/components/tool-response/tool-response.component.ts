@@ -1,15 +1,16 @@
-import { Component, input, signal, computed } from '@angular/core';
+import { Component, input, signal, computed, effect } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatTabsModule } from '@angular/material/tabs';
 import { ResponseViewMode } from '../../models/mcp.models';
 import { marked } from 'marked';
 
 @Component({
   selector: 'app-tool-response',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, MatButtonToggleModule],
+  imports: [MatButtonModule, MatIconModule, MatButtonToggleModule, MatTabsModule],
   template: `
     <div class="response-wrap" [class.error]="isError()">
       <div class="response-header">
@@ -17,74 +18,114 @@ import { marked } from 'marked';
           {{ isError() ? 'error' : 'check_circle' }}
         </mat-icon>
         <span class="result-label">{{ isError() ? 'Error' : 'Result' }}</span>
-
-        <mat-button-toggle-group class="view-toggles" [value]="currentMode()" (change)="currentMode.set($event.value)" hideSingleSelectionIndicator>
-          @for (mode of availableModes(); track mode) {
-            <mat-button-toggle [value]="mode">
-              <mat-icon class="toggle-icon">{{ modeIcon(mode) }}</mat-icon>
-              {{ modeLabel(mode) }}
-            </mat-button-toggle>
-          }
-        </mat-button-toggle-group>
       </div>
 
-      <div class="response-body">
-        @switch (currentMode()) {
-          @case ('json') {
-            <pre class="json-view">{{ jsonText() }}</pre>
-          }
-          @case ('table') {
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    @for (col of tableColumns(); track col) {
-                      <th>{{ col }}</th>
-                    }
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of tableRows(); track $index) {
-                    <tr>
-                      @for (col of tableColumns(); track col) {
-                        <td>{{ row[col] }}</td>
-                      }
-                    </tr>
+      <mat-tab-group class="response-tabs" [selectedIndex]="activeTab()" (selectedIndexChange)="activeTab.set($event)" animationDuration="0ms">
+        <!-- Rendered tab -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="tab-icon">visibility</mat-icon>
+            Rendered
+          </ng-template>
+          <div class="tab-body">
+            @if (isError()) {
+              <div class="error-display">
+                <pre class="error-text">{{ errorText() }}</pre>
+              </div>
+            } @else {
+              <div class="render-toolbar">
+                <mat-button-toggle-group class="view-toggles" [value]="currentMode()" (change)="currentMode.set($event.value)" hideSingleSelectionIndicator>
+                  @for (mode of availableModes(); track mode) {
+                    <mat-button-toggle [value]="mode">
+                      <mat-icon class="toggle-icon">{{ modeIcon(mode) }}</mat-icon>
+                      {{ modeLabel(mode) }}
+                    </mat-button-toggle>
                   }
-                </tbody>
-              </table>
-            </div>
-          }
-          @case ('cards') {
-            <div class="cards-wrap">
-              @for (card of cardItems(); track $index) {
-                <div class="card" [class.expanded]="expandedCards().has($index)">
-                  <div class="card-header" (click)="toggleCard($index)">
-                    <span class="card-title">{{ card.title }}</span>
-                    <mat-icon class="card-chevron">{{ expandedCards().has($index) ? 'expand_less' : 'expand_more' }}</mat-icon>
-                  </div>
-                  @if (expandedCards().has($index)) {
-                    <div class="card-body">
-                      @for (field of card.fields; track field.key) {
-                        <div class="card-field">
-                          <span class="field-key">{{ field.key }}</span>
-                          <span class="field-value">{{ field.value }}</span>
+                </mat-button-toggle-group>
+              </div>
+              <div class="render-body">
+                @switch (currentMode()) {
+                  @case ('json') {
+                    <pre class="json-view">{{ contentJsonText() }}</pre>
+                  }
+                  @case ('table') {
+                    <div class="table-wrap">
+                      <table>
+                        <thead>
+                          <tr>
+                            @for (col of tableColumns(); track col) {
+                              <th>{{ col }}</th>
+                            }
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (row of tableRows(); track $index) {
+                            <tr>
+                              @for (col of tableColumns(); track col) {
+                                <td>{{ row[col] }}</td>
+                              }
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                  @case ('cards') {
+                    <div class="cards-wrap">
+                      @for (card of cardItems(); track $index) {
+                        <div class="card" [class.expanded]="expandedCards().has($index)">
+                          <div class="card-header" (click)="toggleCard($index)">
+                            <span class="card-title">{{ card.title }}</span>
+                            <mat-icon class="card-chevron">{{ expandedCards().has($index) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                          </div>
+                          @if (expandedCards().has($index)) {
+                            <div class="card-body">
+                              @for (field of card.fields; track field.key) {
+                                <div class="card-field">
+                                  <span class="field-key">{{ field.key }}</span>
+                                  <span class="field-value">{{ field.value }}</span>
+                                </div>
+                              }
+                            </div>
+                          }
                         </div>
                       }
                     </div>
                   }
-                </div>
-              }
-            </div>
-          }
-          @case ('markdown') {
-            <div class="markdown-view" [innerHTML]="markdownHtml()"></div>
-          }
-          @case ('text') {
-            <pre class="text-view">{{ textContent() }}</pre>
-          }
-        }
-      </div>
+                  @case ('markdown') {
+                    <div class="markdown-view" [innerHTML]="markdownHtml()"></div>
+                  }
+                  @case ('text') {
+                    <pre class="text-view">{{ textContent() }}</pre>
+                  }
+                }
+              </div>
+            }
+          </div>
+        </mat-tab>
+
+        <!-- Metadata tab -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="tab-icon">info</mat-icon>
+            Metadata
+          </ng-template>
+          <div class="tab-body">
+            <pre class="json-view">{{ metadataJson() }}</pre>
+          </div>
+        </mat-tab>
+
+        <!-- Raw JSON tab -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="tab-icon">data_object</mat-icon>
+            Raw
+          </ng-template>
+          <div class="tab-body">
+            <pre class="json-view">{{ fullJsonText() }}</pre>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
     </div>
   `,
   styles: [`
@@ -93,7 +134,7 @@ import { marked } from 'marked';
       border-radius: 8px;
       overflow: hidden;
       background: var(--bg-input);
-      max-height: 400px;
+      max-height: 500px;
       display: flex;
       flex-direction: column;
 
@@ -128,8 +169,78 @@ import { marked } from 'marked';
       color: var(--text-secondary);
     }
 
+    .response-tabs {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+
+      ::ng-deep {
+        .mat-mdc-tab-header {
+          border-bottom: 1px solid var(--border);
+          --mdc-secondary-navigation-tab-container-height: 32px;
+        }
+
+        .mat-mdc-tab {
+          min-width: 0;
+          padding: 0 12px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 10px;
+          letter-spacing: 0.3px;
+        }
+
+        .mat-mdc-tab-body-wrapper {
+          flex: 1;
+          overflow: hidden;
+        }
+
+        .mat-mdc-tab-body-content {
+          overflow: auto;
+        }
+
+        .mdc-tab__text-label {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+      }
+    }
+
+    .tab-icon {
+      font-size: 13px !important;
+      width: 13px !important;
+      height: 13px !important;
+    }
+
+    .tab-body {
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    .error-display {
+      padding: 12px;
+    }
+
+    .error-text {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--red-text);
+      background: var(--red-dim);
+      padding: 12px;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0;
+    }
+
+    .render-toolbar {
+      padding: 6px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel-header-bg);
+    }
+
     .view-toggles {
-      margin-left: auto;
       height: 26px;
       border-radius: 6px !important;
       border: 1px solid var(--border) !important;
@@ -162,9 +273,8 @@ import { marked } from 'marked';
       height: 12px !important;
     }
 
-    .response-body {
+    .render-body {
       overflow-y: auto;
-      flex: 1;
       scrollbar-width: thin;
     }
 
@@ -309,25 +419,94 @@ export class ToolResponseComponent {
 
   expandedCards = signal<Set<number>>(new Set());
   currentMode = signal<ResponseViewMode>('json');
+  activeTab = signal(0);
 
-  constructor(private sanitizer: DomSanitizer) {}
-
-  private readonly parsedContent = computed(() => {
-    const res = this.result() as Record<string, unknown> | null;
-    if (!res) return null;
-    const content = (res as { content?: { type: string; text: string }[] }).content;
-    if (Array.isArray(content) && content.length > 0) {
-      const textItem = content.find(c => c.type === 'text');
-      if (textItem?.text) {
-        try { return JSON.parse(textItem.text); } catch { return textItem.text; }
+  constructor(private sanitizer: DomSanitizer) {
+    // Auto-select the best view mode when a new result arrives
+    effect(() => {
+      const detected = this.detectedMode();
+      if (detected !== 'json') {
+        this.currentMode.set(detected);
       }
+    });
+  }
+
+  /**
+   * Extract the core content from the MCP result.
+   * MCP responses look like: { content: [{ type: "text", text: "..." }], isError: false }
+   * The "content" array is the actual data; everything else is metadata.
+   */
+  private readonly contentItems = computed(() => {
+    const res = this.result() as Record<string, unknown> | null;
+    if (!res) return [];
+    const content = res['content'];
+    if (Array.isArray(content)) return content as { type: string; text?: string; data?: string; mimeType?: string }[];
+    return [];
+  });
+
+  /**
+   * Parse the text content from content items.
+   * Tries JSON parsing first, falls back to raw string.
+   */
+  private readonly parsedContent = computed(() => {
+    const items = this.contentItems();
+    if (items.length === 0) {
+      // No content array - might be an error or unusual response, show whole result
+      return this.result();
     }
-    return res;
+
+    // Combine all text items
+    const textItems = items.filter(c => c.type === 'text' && c.text);
+    if (textItems.length === 0) return null;
+
+    if (textItems.length === 1) {
+      const text = textItems[0].text!;
+      try { return JSON.parse(text); } catch { return text; }
+    }
+
+    // Multiple text items - try combining
+    const combined = textItems.map(t => t.text!).join('\n');
+    try { return JSON.parse(combined); } catch { return combined; }
+  });
+
+  /**
+   * Metadata: everything in the result EXCEPT content
+   */
+  readonly metadataJson = computed(() => {
+    const res = this.result() as Record<string, unknown> | null;
+    if (!res || typeof res !== 'object') return '{}';
+    const meta: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(res)) {
+      if (k !== 'content') meta[k] = v;
+    }
+    return JSON.stringify(meta, null, 2);
+  });
+
+  readonly fullJsonText = computed(() => {
+    try { return JSON.stringify(this.result(), null, 2); } catch { return String(this.result()); }
+  });
+
+  readonly contentJsonText = computed(() => {
+    const data = this.parsedContent();
+    try { return JSON.stringify(data, null, 2); } catch { return String(data); }
+  });
+
+  readonly errorText = computed(() => {
+    const res = this.result() as Record<string, unknown> | null;
+    if (!res) return 'Unknown error';
+    const err = res['error'];
+    if (typeof err === 'string') {
+      // Try to pretty-print if it's JSON
+      try { return JSON.stringify(JSON.parse(err), null, 2); } catch { return err; }
+    }
+    if (typeof err === 'object') return JSON.stringify(err, null, 2);
+    return JSON.stringify(res, null, 2);
   });
 
   readonly detectedMode = computed((): ResponseViewMode => {
+    if (this.isError()) return 'json';
     const data = this.parsedContent();
-    if (data == null) return 'json';
+    if (data == null) return 'text';
     if (typeof data === 'string') {
       if (/^#{1,6}\s|^\*\*|^- |^```|^\|.*\|/m.test(data)) return 'markdown';
       return 'text';
@@ -355,14 +534,7 @@ export class ToolResponseComponent {
     if (detected === 'cards') modes.push('cards', 'table');
     if (detected === 'markdown') modes.push('markdown');
     if (detected === 'text') modes.push('text');
-    if (this.currentMode() === 'json' && detected !== 'json') {
-      this.currentMode.set(detected);
-    }
     return modes;
-  });
-
-  readonly jsonText = computed(() => {
-    try { return JSON.stringify(this.result(), null, 2); } catch { return String(this.result()); }
   });
 
   readonly textContent = computed(() => {
