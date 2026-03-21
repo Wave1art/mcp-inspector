@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { McpService, buildDefaultArgs, formatType } from '../../services/mcp.service';
+import { McpService, buildDefaultArgs, formatType, validateArgs } from '../../services/mcp.service';
 import { ToolResponseComponent } from '../tool-response/tool-response.component';
 import { DescriptionModalComponent } from '../description-modal/description-modal.component';
 
@@ -67,6 +67,17 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
               ></textarea>
             </div>
 
+            @if (validationErrors().length) {
+              <div class="validation-errors">
+                @for (err of validationErrors(); track err) {
+                  <div class="validation-error">
+                    <mat-icon class="validation-icon">warning</mat-icon>
+                    {{ err }}
+                  </div>
+                }
+              </div>
+            }
+
             <div class="call-actions">
               <button mat-flat-button class="call-btn"
                 (click)="callTool()"
@@ -82,7 +93,7 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
             </div>
 
             @if (mcp.lastCallResult(); as result) {
-              <app-tool-response [result]="result.data" [isError]="result.isError" />
+              <app-tool-response [result]="result.data" [isError]="result.isError" [durationMs]="mcp.lastCallResult()?.durationMs" />
             }
           </div>
         } @else {
@@ -248,6 +259,32 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
       }
     }
 
+    .validation-errors {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .validation-error {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--red, #e53935);
+      padding: 6px 10px;
+      background: var(--red-dim, rgba(229, 57, 53, 0.08));
+      border-radius: 6px;
+    }
+
+    .validation-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      color: var(--amber, #ffa726);
+      flex-shrink: 0;
+    }
+
     .call-actions {
       display: flex;
       gap: 8px;
@@ -308,6 +345,19 @@ export class ToolDetailComponent {
       }
     }
   }
+
+  readonly validationErrors = computed(() => {
+    const tool = this.mcp.selectedTool();
+    if (!tool) return [];
+    const json = this.argsJson();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch (e) {
+      return [`Invalid JSON: ${e instanceof Error ? e.message : String(e)}`];
+    }
+    return validateArgs(tool.inputSchema, parsed);
+  });
 
   readonly params = computed(() => {
     const tool = this.mcp.selectedTool();

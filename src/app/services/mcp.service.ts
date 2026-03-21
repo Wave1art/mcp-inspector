@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { McpTool, McpServerInfo, ConnectionStatus, ToolGroup } from '../models/mcp.models';
+import { McpTool, McpServerInfo, ConnectionStatus, ToolGroup, JsonSchema } from '../models/mcp.models';
 import { LogService } from './log.service';
 import { AuthService } from './auth.service';
 
@@ -60,6 +60,51 @@ export function formatType(p: { type?: string; anyOf?: { type: string }[] }): st
   return p.type || 'any';
 }
 
+export function validateArgs(schema: JsonSchema | undefined, args: unknown): string[] {
+  const errors: string[] = [];
+  if (!schema || !schema.properties) return errors;
+
+  if (typeof args !== 'object' || args === null || Array.isArray(args)) {
+    errors.push('Arguments must be a JSON object');
+    return errors;
+  }
+
+  const obj = args as Record<string, unknown>;
+  const required = schema.required || [];
+
+  // Check required fields
+  for (const key of required) {
+    if (!(key in obj) || obj[key] === '' || obj[key] === null || obj[key] === undefined) {
+      errors.push(`Missing required field: ${key}`);
+    }
+  }
+
+  // Check types
+  for (const [key, val] of Object.entries(obj)) {
+    const prop = schema.properties[key];
+    if (!prop) continue; // extra fields are ok
+
+    const propType = prop.type;
+    if (!propType) continue;
+
+    if (propType === 'string' && typeof val !== 'string') {
+      errors.push(`${key}: expected string, got ${typeof val}`);
+    } else if (propType === 'number' && typeof val !== 'number') {
+      errors.push(`${key}: expected number, got ${typeof val}`);
+    } else if (propType === 'integer' && (typeof val !== 'number' || !Number.isInteger(val))) {
+      errors.push(`${key}: expected integer`);
+    } else if (propType === 'boolean' && typeof val !== 'boolean') {
+      errors.push(`${key}: expected boolean, got ${typeof val}`);
+    } else if (propType === 'array' && !Array.isArray(val)) {
+      errors.push(`${key}: expected array, got ${typeof val}`);
+    } else if (propType === 'object' && (typeof val !== 'object' || val === null || Array.isArray(val))) {
+      errors.push(`${key}: expected object`);
+    }
+  }
+
+  return errors;
+}
+
 @Injectable({ providedIn: 'root' })
 export class McpService {
   private requestId = 0;
@@ -71,13 +116,32 @@ export class McpService {
   readonly sessionId = signal<string | null>(null);
   readonly serverInfo = signal<McpServerInfo | null>(null);
   readonly mcpUrl = signal<string>('http://127.0.0.1:6277/mcp');
-  readonly lastCallResult = signal<{ data: unknown; isError: boolean } | null>(null);
+  readonly lastCallResult = signal<{ data: unknown; isError: boolean; durationMs?: number } | null>(null);
   readonly calling = signal<boolean>(false);
   readonly collapsedGroups = signal<Set<string>>(new Set());
+  readonly searchQuery = signal('');
 
   readonly connected = computed(() => this.status() === 'connected');
   readonly toolGroups = computed(() => groupToolsByPrefix(this.tools()));
   readonly toolCount = computed(() => this.tools().length);
+
+  readonly filteredToolGroups = computed(() => {
+    const query = this.searchQuery().toLowerCase().trim();
+    const groups = this.toolGroups();
+    if (!query) return groups;
+
+    return groups
+      .map(group => {
+        const filtered = group.items.filter(item => {
+          const name = item.tool.name.toLowerCase();
+          const desc = (item.tool.description || '').toLowerCase();
+          return name.includes(query) || desc.includes(query);
+        });
+        if (filtered.length === 0) return null;
+        return { ...group, items: filtered };
+      })
+      .filter((g): g is ToolGroup => g !== null);
+  });
 
   constructor(
     private log: LogService,
@@ -175,10 +239,13 @@ export class McpService {
         });
         return;
       }
+      const startTime = performance.now();
       const result = await this.mcpRequest('tools/call', { name, arguments: args }) as { isError?: boolean; content?: unknown[] };
+      const durationMs = Math.round(performance.now() - startTime);
       this.lastCallResult.set({
         data: result,
         isError: !!result.isError,
+        durationMs,
       });
     } catch (err) {
       this.lastCallResult.set({

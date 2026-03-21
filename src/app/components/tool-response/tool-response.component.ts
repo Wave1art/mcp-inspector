@@ -18,6 +18,9 @@ import { marked } from 'marked';
           {{ isError() ? 'error' : 'check_circle' }}
         </mat-icon>
         <span class="result-label">{{ isError() ? 'Error' : 'Result' }}</span>
+        @if (durationMs() !== undefined) {
+          <span class="duration-label">{{ formatDuration(durationMs()!) }}</span>
+        }
       </div>
 
       <mat-tab-group class="response-tabs" [selectedIndex]="activeTab()" (selectedIndexChange)="activeTab.set($event)" animationDuration="0ms">
@@ -167,6 +170,13 @@ import { marked } from 'marked';
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--text-secondary);
+    }
+
+    .duration-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-left: auto;
     }
 
     .response-tabs {
@@ -416,6 +426,7 @@ import { marked } from 'marked';
 export class ToolResponseComponent {
   result = input<unknown>(null);
   isError = input<boolean>(false);
+  durationMs = input<number | undefined>(undefined);
 
   expandedCards = signal<Set<number>>(new Set());
   currentMode = signal<ResponseViewMode>('json');
@@ -599,6 +610,11 @@ export class ToolResponseComponent {
 
   modeIcon(mode: ResponseViewMode): string {
     return { json: 'data_object', table: 'table_chart', cards: 'view_agenda', markdown: 'article', text: 'notes' }[mode];
+  }
+
+  formatDuration(ms: number): string {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
   }
 
   toggleCard(index: number): void {

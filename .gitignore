@@ -43,3 +43,6 @@ __screenshots__/
 .DS_Store
 Thumbs.db
 .claude/settings.local.json
+test-server/.venv/
+test-server/*.egg-info/
+__pycache__/

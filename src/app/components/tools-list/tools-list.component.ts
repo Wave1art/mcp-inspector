@@ -1,19 +1,22 @@
-import { Component } from '@angular/core';
+import { Component, computed, ViewChild, ElementRef, HostListener } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatRippleModule } from '@angular/material/core';
 import { MatBadgeModule } from '@angular/material/badge';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
 import { McpService } from '../../services/mcp.service';
 
 @Component({
   selector: 'app-tools-list',
   standalone: true,
-  imports: [MatIconModule, MatRippleModule, MatBadgeModule],
+  imports: [FormsModule, MatIconModule, MatRippleModule, MatBadgeModule, MatFormFieldModule, MatInputModule],
   template: `
     <div class="panel">
       <div class="panel-header">
         <mat-icon class="header-icon">build</mat-icon>
         <span class="header-title">Tools</span>
-        <span class="count-badge">{{ mcp.toolCount() }}</span>
+        <span class="count-badge">{{ mcp.searchQuery() ? filteredCount() : mcp.toolCount() }}</span>
       </div>
 
       @if (mcp.serverInfo(); as info) {
@@ -25,6 +28,24 @@ import { McpService } from '../../services/mcp.service';
       }
 
       <div class="panel-body">
+        @if (mcp.connected() && mcp.toolCount() > 0) {
+          <div class="search-bar">
+            <mat-form-field appearance="outline" class="search-field" subscriptSizing="dynamic">
+              <mat-icon matPrefix class="search-icon">search</mat-icon>
+              <input matInput
+                #searchInput
+                placeholder="Filter tools...  (/)"
+                [ngModel]="mcp.searchQuery()"
+                (ngModelChange)="mcp.searchQuery.set($event)">
+              @if (mcp.searchQuery()) {
+                <button mat-icon-button matSuffix (click)="mcp.searchQuery.set('')" class="clear-btn">
+                  <mat-icon>close</mat-icon>
+                </button>
+              }
+            </mat-form-field>
+          </div>
+        }
+
         @if (!mcp.connected()) {
           <div class="empty-state">
             <mat-icon class="empty-icon">power_off</mat-icon>
@@ -35,8 +56,13 @@ import { McpService } from '../../services/mcp.service';
             <mat-icon class="empty-icon">inbox</mat-icon>
             <span>No tools registered</span>
           </div>
+        } @else if (mcp.searchQuery() && filteredCount() === 0) {
+          <div class="empty-state">
+            <mat-icon class="empty-icon">search_off</mat-icon>
+            <span>No tools match "{{ mcp.searchQuery() }}"</span>
+          </div>
         } @else {
-          @for (group of mcp.toolGroups(); track group.prefix) {
+          @for (group of mcp.filteredToolGroups(); track group.prefix) {
             <div class="tool-group">
               <div class="group-header" matRipple (click)="mcp.toggleGroup(group.prefix)">
                 <mat-icon class="chevron">{{ isGroupCollapsed(group.prefix) ? 'chevron_right' : 'expand_more' }}</mat-icon>
@@ -255,10 +281,87 @@ import { McpService } from '../../services/mcp.service';
       height: 36px;
       opacity: 0.4;
     }
+
+    .search-bar {
+      padding: 8px 12px 4px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .search-field {
+      width: 100%;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+
+      ::ng-deep {
+        .mat-mdc-form-field-infix {
+          min-height: 32px;
+          padding-top: 4px !important;
+          padding-bottom: 4px !important;
+        }
+        .mat-mdc-text-field-wrapper {
+          padding: 0 8px;
+        }
+        .mdc-notched-outline__leading,
+        .mdc-notched-outline__notch,
+        .mdc-notched-outline__trailing {
+          border-color: var(--border) !important;
+        }
+        .mat-mdc-form-field-flex {
+          align-items: center;
+        }
+        input.mat-mdc-input-element {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+          color: var(--text-primary);
+        }
+      }
+    }
+
+    .search-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+
+    .clear-btn {
+      width: 24px !important;
+      height: 24px !important;
+      line-height: 24px !important;
+
+      mat-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        color: var(--text-muted);
+      }
+    }
   `],
 })
 export class ToolsListComponent {
+  @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
+
+  readonly filteredCount = computed(() =>
+    this.mcp.filteredToolGroups().reduce((sum, g) => sum + g.items.length, 0)
+  );
+
   constructor(public mcp: McpService) {}
+
+  @HostListener('window:keydown', ['$event'])
+  onKeydown(event: KeyboardEvent): void {
+    if (event.key === '/' && !this.isTyping(event)) {
+      event.preventDefault();
+      this.searchInput?.nativeElement?.focus();
+    }
+  }
+
+  private isTyping(event: KeyboardEvent): boolean {
+    const target = event.target as HTMLElement;
+    const tag = target?.tagName?.toLowerCase();
+    return tag === 'input' || tag === 'textarea' || target?.isContentEditable;
+  }
 
   isGroupCollapsed(prefix: string): boolean {
     return this.mcp.collapsedGroups().has(prefix);
