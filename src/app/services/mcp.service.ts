@@ -2,6 +2,7 @@ import { Injectable, signal, computed } from '@angular/core';
 import { McpTool, McpServerInfo, ConnectionStatus, ToolGroup, JsonSchema } from '../models/mcp.models';
 import { LogService } from './log.service';
 import { AuthService } from './auth.service';
+import { HistoryService } from './history.service';
 
 const MAX_PAGES = 20;
 
@@ -146,6 +147,7 @@ export class McpService {
   constructor(
     private log: LogService,
     private auth: AuthService,
+    public history: HistoryService,
   ) {}
 
   async loadConfig(): Promise<void> {
@@ -233,10 +235,12 @@ export class McpService {
       try {
         args = JSON.parse(argsJson);
       } catch (parseErr) {
-        this.lastCallResult.set({
+        const errorResult = {
           data: { error: `Invalid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}` },
           isError: true,
-        });
+        };
+        this.lastCallResult.set(errorResult);
+        this.history.addEntry(name, argsJson, errorResult.data, true);
         return;
       }
       const startTime = performance.now();
@@ -247,11 +251,14 @@ export class McpService {
         isError: !!result.isError,
         durationMs,
       });
+      this.history.addEntry(name, argsJson, result, !!result.isError, durationMs);
     } catch (err) {
+      const errorData = { error: err instanceof Error ? err.message : String(err) };
       this.lastCallResult.set({
-        data: { error: err instanceof Error ? err.message : String(err) },
+        data: errorData,
         isError: true,
       });
+      this.history.addEntry(name, argsJson, errorData, true);
     } finally {
       this.calling.set(false);
     }

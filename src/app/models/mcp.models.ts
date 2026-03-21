@@ -5,6 +5,7 @@ export interface JsonSchemaProperty {
   description?: string;
   items?: JsonSchemaProperty;
   properties?: Record<string, JsonSchemaProperty>;
+  enum?: unknown[];
 }
 
 export interface JsonSchema {
