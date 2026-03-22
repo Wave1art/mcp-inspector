@@ -29,8 +29,8 @@ import { LogEntry } from '../../models/mcp.models';
 
       <div class="filter-bar">
         <mat-button-toggle-group multiple class="dir-toggles" [value]="dirFilterArray()" (change)="onDirFilterChange($event.value)" hideSingleSelectionIndicator>
-          <mat-button-toggle value="out">OUT</mat-button-toggle>
-          <mat-button-toggle value="in">IN</mat-button-toggle>
+          <mat-button-toggle value="out">SENT</mat-button-toggle>
+          <mat-button-toggle value="in">RESP</mat-button-toggle>
           <mat-button-toggle value="err">ERR</mat-button-toggle>
         </mat-button-toggle-group>
         <input
@@ -87,7 +87,7 @@ import { LogEntry } from '../../models/mcp.models';
     }
 
     .panel-header {
-      padding: 8px 16px;
+      padding: 12px 16px;
       background: var(--panel-header-bg);
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -314,7 +314,7 @@ export class LogPanelComponent {
   }
 
   dirLabel(dir: string): string {
-    return { out: '\u2192 OUT', in: '\u2190 IN', err: '\u2715 ERR' }[dir] || dir;
+    return { out: '\u2192 SENT', in: '\u2190 RESP', err: '\u2715 ERR' }[dir] || dir;
   }
 
   formatTime(date: Date): string {

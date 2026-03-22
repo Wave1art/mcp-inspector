@@ -33,6 +33,16 @@ import { SidebarTab } from './models/mcp.models';
       <div class="main-content">
         @if (!toolsCollapsed()) {
           <div class="sidebar left">
+            <div class="sidebar-header">
+              @if (mcp.serverInfo(); as info) {
+                <mat-icon class="header-icon">dns</mat-icon>
+                <span class="server-name">{{ info.serverInfo?.name || 'MCP Server' }}</span>
+                <span class="server-version">v{{ info.serverInfo?.version || '?' }}</span>
+              } @else {
+                <mat-icon class="header-icon">link_off</mat-icon>
+                <span class="server-name">Not connected</span>
+              }
+            </div>
             <div class="sidebar-tabs">
               <mat-button-toggle-group [value]="mcp.activeTab()" (change)="onTabChange($event.value)" class="tab-toggles" hideSingleSelectionIndicator>
                 <mat-button-toggle value="tools">
@@ -112,9 +122,39 @@ import { SidebarTab } from './models/mcp.models';
       }
     }
 
+    .sidebar-header {
+      flex-shrink: 0;
+      padding: 12px 16px;
+      background: var(--panel-header-bg);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: var(--accent);
+    }
+
+    .server-name {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .server-version {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
     .sidebar-tabs {
       flex-shrink: 0;
-      padding: 8px 8px 0;
+      padding: 8px;
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border);
     }
