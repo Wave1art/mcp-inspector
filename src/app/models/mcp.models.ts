@@ -53,3 +53,36 @@ export interface OAuthStatus {
   token?: { expiresAt: string };
   error?: string;
 }
+
+export interface McpResource {
+  uri: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface McpResourceTemplate {
+  uriTemplate: string;
+  name: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface McpPrompt {
+  name: string;
+  description?: string;
+  arguments?: McpPromptArgument[];
+}
+
+export interface McpPromptArgument {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface McpPromptMessage {
+  role: string;
+  content: { type: string; text?: string }[] | { type: string; text?: string } | string;
+}
+
+export type SidebarTab = 'tools' | 'resources' | 'prompts';

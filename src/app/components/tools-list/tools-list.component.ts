@@ -13,12 +13,6 @@ import { McpService } from '../../services/mcp.service';
   imports: [FormsModule, MatIconModule, MatRippleModule, MatBadgeModule, MatFormFieldModule, MatInputModule],
   template: `
     <div class="panel">
-      <div class="panel-header">
-        <mat-icon class="header-icon">build</mat-icon>
-        <span class="header-title">Tools</span>
-        <span class="count-badge">{{ mcp.searchQuery() ? filteredCount() : mcp.toolCount() }}</span>
-      </div>
-
       @if (mcp.serverInfo(); as info) {
         <div class="server-info">
           <mat-icon class="info-icon">dns</mat-icon>

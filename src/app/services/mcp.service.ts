@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { McpTool, McpServerInfo, ConnectionStatus, ToolGroup, JsonSchema } from '../models/mcp.models';
+import { McpTool, McpServerInfo, ConnectionStatus, ToolGroup, JsonSchema, McpResource, McpResourceTemplate, McpPrompt, McpPromptMessage, SidebarTab } from '../models/mcp.models';
 import { LogService } from './log.service';
 import { AuthService } from './auth.service';
 import { HistoryService } from './history.service';
@@ -122,6 +122,19 @@ export class McpService {
   readonly collapsedGroups = signal<Set<string>>(new Set());
   readonly searchQuery = signal('');
 
+  // Resources & Prompts
+  readonly resources = signal<McpResource[]>([]);
+  readonly resourceTemplates = signal<McpResourceTemplate[]>([]);
+  readonly prompts = signal<McpPrompt[]>([]);
+  readonly selectedResource = signal<McpResource | null>(null);
+  readonly selectedPrompt = signal<McpPrompt | null>(null);
+  readonly resourceContent = signal<{ data: unknown; isError: boolean } | null>(null);
+  readonly promptMessages = signal<McpPromptMessage[] | null>(null);
+  readonly activeTab = signal<SidebarTab>('tools');
+  readonly serverCapabilities = signal<Record<string, unknown>>({});
+  readonly resourceSearchQuery = signal('');
+  readonly promptSearchQuery = signal('');
+
   readonly connected = computed(() => this.status() === 'connected');
   readonly toolGroups = computed(() => groupToolsByPrefix(this.tools()));
   readonly toolCount = computed(() => this.tools().length);
@@ -186,9 +199,29 @@ export class McpService {
       if (!this.sessionId()) throw new Error('No mcp-session-id header in response');
       await this.mcpNotify('notifications/initialized');
 
+      const capabilities = (initResult as Record<string, unknown>)?.['capabilities'] as Record<string, unknown> || {};
+      this.serverCapabilities.set(capabilities);
+
       const allTools = await this.fetchAllTools();
       this.tools.set(allTools);
       this.serverInfo.set(initResult as McpServerInfo);
+
+      // Fetch resources if supported
+      if (capabilities['resources']) {
+        try {
+          const allResources = await this.fetchAllResources();
+          this.resources.set(allResources);
+        } catch {}
+      }
+
+      // Fetch prompts if supported
+      if (capabilities['prompts']) {
+        try {
+          const allPrompts = await this.fetchAllPrompts();
+          this.prompts.set(allPrompts);
+        } catch {}
+      }
+
       this.status.set('connected');
     } catch (err) {
       this.status.set('error');
@@ -206,6 +239,17 @@ export class McpService {
     this.serverInfo.set(null);
     this.lastCallResult.set(null);
     this.collapsedGroups.set(new Set());
+    this.resources.set([]);
+    this.resourceTemplates.set([]);
+    this.prompts.set([]);
+    this.selectedResource.set(null);
+    this.selectedPrompt.set(null);
+    this.resourceContent.set(null);
+    this.promptMessages.set(null);
+    this.activeTab.set('tools');
+    this.serverCapabilities.set({});
+    this.resourceSearchQuery.set('');
+    this.promptSearchQuery.set('');
     this.status.set('disconnected');
   }
 
@@ -262,6 +306,96 @@ export class McpService {
     } finally {
       this.calling.set(false);
     }
+  }
+
+  selectResource(resource: McpResource): void {
+    this.selectedResource.set(resource);
+    this.selectedPrompt.set(null);
+    this.resourceContent.set(null);
+  }
+
+  selectPrompt(prompt: McpPrompt): void {
+    this.selectedPrompt.set(prompt);
+    this.selectedResource.set(null);
+    this.promptMessages.set(null);
+  }
+
+  async readResource(uri: string): Promise<void> {
+    this.resourceContent.set(null);
+    try {
+      const result = await this.mcpRequest('resources/read', { uri });
+      this.resourceContent.set({ data: result, isError: false });
+    } catch (err) {
+      this.resourceContent.set({
+        data: { error: err instanceof Error ? err.message : String(err) },
+        isError: true,
+      });
+    }
+  }
+
+  async getPrompt(name: string, args: Record<string, string>): Promise<void> {
+    this.promptMessages.set(null);
+    try {
+      const result = await this.mcpRequest('prompts/get', { name, arguments: args }) as { messages?: McpPromptMessage[] };
+      this.promptMessages.set(result.messages || []);
+    } catch (err) {
+      this.promptMessages.set([{
+        role: 'error',
+        content: [{ type: 'text', text: err instanceof Error ? err.message : String(err) }],
+      }]);
+    }
+  }
+
+  private async fetchAllResources(): Promise<McpResource[]> {
+    const allResources: McpResource[] = [];
+    let cursor: string | undefined;
+    let page = 0;
+
+    while (page < MAX_PAGES) {
+      const params: Record<string, unknown> = {};
+      if (cursor) params['cursor'] = cursor;
+
+      const result = await this.mcpRequest('resources/list', params) as {
+        resources?: McpResource[];
+        nextCursor?: string;
+      };
+      const batch = result.resources || [];
+      allResources.push(...batch);
+
+      if (result.nextCursor) {
+        cursor = result.nextCursor;
+        page++;
+      } else {
+        break;
+      }
+    }
+    return allResources;
+  }
+
+  private async fetchAllPrompts(): Promise<McpPrompt[]> {
+    const allPrompts: McpPrompt[] = [];
+    let cursor: string | undefined;
+    let page = 0;
+
+    while (page < MAX_PAGES) {
+      const params: Record<string, unknown> = {};
+      if (cursor) params['cursor'] = cursor;
+
+      const result = await this.mcpRequest('prompts/list', params) as {
+        prompts?: McpPrompt[];
+        nextCursor?: string;
+      };
+      const batch = result.prompts || [];
+      allPrompts.push(...batch);
+
+      if (result.nextCursor) {
+        cursor = result.nextCursor;
+        page++;
+      } else {
+        break;
+      }
+    }
+    return allPrompts;
   }
 
   private async fetchAllTools(): Promise<McpTool[]> {
