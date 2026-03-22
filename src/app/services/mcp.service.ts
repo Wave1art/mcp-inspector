@@ -323,8 +323,21 @@ export class McpService {
   async readResource(uri: string): Promise<void> {
     this.resourceContent.set(null);
     try {
-      const result = await this.mcpRequest('resources/read', { uri });
-      this.resourceContent.set({ data: result, isError: false });
+      const result = await this.mcpRequest('resources/read', { uri }) as {
+        contents?: { uri: string; mimeType?: string; text?: string; blob?: string }[];
+      };
+      // Transform resource response into a format the response component understands
+      const contents = result.contents || [];
+      const textParts = contents.map(c => c.text).filter(Boolean);
+      const combinedText = textParts.join('\n');
+      // Try to parse as JSON for smart rendering
+      let parsedData: unknown;
+      try { parsedData = JSON.parse(combinedText); } catch { parsedData = combinedText; }
+      // Wrap in MCP content format so ToolResponseComponent can render it
+      this.resourceContent.set({
+        data: { content: [{ type: 'text', text: typeof parsedData === 'string' ? parsedData : JSON.stringify(parsedData, null, 2) }], isError: false },
+        isError: false,
+      });
     } catch (err) {
       this.resourceContent.set({
         data: { error: err instanceof Error ? err.message : String(err) },
