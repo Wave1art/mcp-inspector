@@ -32,6 +32,7 @@ export interface LogEntry {
   data: unknown;
   timestamp: Date;
   id: number;
+  durationMs?: number;
 }
 
 export interface ToolGroup {

@@ -1,4 +1,4 @@
-import { Component, computed, ViewChild, ElementRef, HostListener } from '@angular/core';
+import { Component, computed, signal, ViewChild, ElementRef, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { MatRippleModule } from '@angular/material/core';
@@ -68,6 +68,7 @@ import { McpService } from '../../services/mcp.service';
                   <div
                     class="tool-item"
                     [class.active]="mcp.selectedToolIndex() === item.globalIndex"
+                    [class.focused]="focusedIndex() === item.globalIndex"
                     matRipple
                     (click)="mcp.selectTool(item.globalIndex)"
                   >
@@ -226,6 +227,10 @@ import { McpService } from '../../services/mcp.service';
         background: var(--active-bg);
         border-left-color: var(--active-border);
       }
+      &.focused {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+      }
     }
 
     .tool-name {
@@ -337,17 +342,63 @@ import { McpService } from '../../services/mcp.service';
 export class ToolsListComponent {
   @ViewChild('searchInput') searchInput!: ElementRef<HTMLInputElement>;
 
+  readonly focusedIndex = signal(-1);
+
   readonly filteredCount = computed(() =>
     this.mcp.filteredToolGroups().reduce((sum, g) => sum + g.items.length, 0)
   );
+
+  /** Flat list of visible (non-collapsed) tool global indices */
+  private readonly visibleIndices = computed(() => {
+    const indices: number[] = [];
+    for (const group of this.mcp.filteredToolGroups()) {
+      if (!this.isGroupCollapsed(group.prefix)) {
+        for (const item of group.items) {
+          indices.push(item.globalIndex);
+        }
+      }
+    }
+    return indices;
+  });
 
   constructor(public mcp: McpService) {}
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
-    if (event.key === '/' && !this.isTyping(event)) {
+    // Cmd+K / Ctrl+K or / for search focus
+    if ((event.key === 'k' && (event.metaKey || event.ctrlKey)) ||
+        (event.key === '/' && !this.isTyping(event))) {
       event.preventDefault();
       this.searchInput?.nativeElement?.focus();
+      return;
+    }
+
+    // Arrow key navigation
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      const indices = this.visibleIndices();
+      if (indices.length === 0) return;
+
+      event.preventDefault();
+      const current = this.focusedIndex();
+      const currentPos = indices.indexOf(current);
+
+      let nextPos: number;
+      if (event.key === 'ArrowDown') {
+        nextPos = currentPos < 0 ? 0 : Math.min(currentPos + 1, indices.length - 1);
+      } else {
+        nextPos = currentPos <= 0 ? 0 : currentPos - 1;
+      }
+      this.focusedIndex.set(indices[nextPos]);
+      return;
+    }
+
+    // Enter to select focused tool
+    if (event.key === 'Enter' && !this.isTyping(event)) {
+      const idx = this.focusedIndex();
+      if (idx >= 0) {
+        event.preventDefault();
+        this.mcp.selectTool(idx);
+      }
     }
   }
 
