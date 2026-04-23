@@ -1,16 +1,17 @@
-import { Component, input, signal, computed, effect } from '@angular/core';
+import { Component, input, signal, computed, effect, ViewChildren, QueryList, ElementRef } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ResponseViewMode } from '../../models/mcp.models';
 import { marked } from 'marked';
 
 @Component({
   selector: 'app-tool-response',
   standalone: true,
-  imports: [MatButtonModule, MatIconModule, MatButtonToggleModule, MatTabsModule],
+  imports: [MatButtonModule, MatIconModule, MatButtonToggleModule, MatTabsModule, MatTooltipModule],
   template: `
     <div class="response-wrap" [class.error]="isError()">
       <div class="response-header">
@@ -18,6 +19,12 @@ import { marked } from 'marked';
           {{ isError() ? 'error' : 'check_circle' }}
         </mat-icon>
         <span class="result-label">{{ isError() ? 'Error' : 'Result' }}</span>
+        @if (durationMs() !== undefined) {
+          <span class="duration-label">{{ formatDuration(durationMs()!) }}</span>
+        }
+        <button mat-icon-button class="copy-response-btn" (click)="copyCurrentTab()" matTooltip="Copy to clipboard">
+          <mat-icon>content_copy</mat-icon>
+        </button>
       </div>
 
       <mat-tab-group class="response-tabs" [selectedIndex]="activeTab()" (selectedIndexChange)="activeTab.set($event)" animationDuration="0ms">
@@ -167,6 +174,29 @@ import { marked } from 'marked';
       text-transform: uppercase;
       letter-spacing: 0.5px;
       color: var(--text-secondary);
+    }
+
+    .duration-label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .copy-response-btn {
+      width: 28px !important;
+      height: 28px !important;
+      line-height: 28px !important;
+      flex-shrink: 0;
+
+      mat-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        color: var(--text-muted);
+      }
+
+      &:hover mat-icon { color: var(--accent); }
     }
 
     .response-tabs {
@@ -416,6 +446,7 @@ import { marked } from 'marked';
 export class ToolResponseComponent {
   result = input<unknown>(null);
   isError = input<boolean>(false);
+  durationMs = input<number | undefined>(undefined);
 
   expandedCards = signal<Set<number>>(new Set());
   currentMode = signal<ResponseViewMode>('json');
@@ -599,6 +630,30 @@ export class ToolResponseComponent {
 
   modeIcon(mode: ResponseViewMode): string {
     return { json: 'data_object', table: 'table_chart', cards: 'view_agenda', markdown: 'article', text: 'notes' }[mode];
+  }
+
+  formatDuration(ms: number): string {
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(1)}s`;
+  }
+
+  copyCurrentTab(): void {
+    const tabIndex = this.activeTab();
+    let text: string;
+    switch (tabIndex) {
+      case 0: // Rendered
+        text = this.contentJsonText();
+        break;
+      case 1: // Metadata
+        text = this.metadataJson();
+        break;
+      case 2: // Raw
+        text = this.fullJsonText();
+        break;
+      default:
+        text = this.fullJsonText();
+    }
+    navigator.clipboard.writeText(text);
   }
 
   toggleCard(index: number): void {

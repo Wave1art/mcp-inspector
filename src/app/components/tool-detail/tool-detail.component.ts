@@ -1,17 +1,20 @@
 import { Component, signal, computed, inject, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
-import { McpService, buildDefaultArgs, formatType } from '../../services/mcp.service';
+import { McpService, buildDefaultArgs, formatType, validateArgs } from '../../services/mcp.service';
+import { HistoryService, HistoryEntry } from '../../services/history.service';
 import { ToolResponseComponent } from '../tool-response/tool-response.component';
 import { DescriptionModalComponent } from '../description-modal/description-modal.component';
+import { SchemaFormComponent } from '../schema-form/schema-form.component';
 
 @Component({
   selector: 'app-tool-detail',
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatIconModule, MatTooltipModule, MatDialogModule, ToolResponseComponent],
+  imports: [FormsModule, MatButtonModule, MatButtonToggleModule, MatIconModule, MatTooltipModule, MatDialogModule, ToolResponseComponent, SchemaFormComponent],
   template: `
     <div class="panel">
       <div class="panel-header">
@@ -54,18 +57,49 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
             }
 
             <div class="editor-section">
-              <div class="section-label">
-                <mat-icon class="section-icon">data_object</mat-icon>
-                Arguments (JSON)
+              <div class="section-label-row">
+                <div class="section-label">
+                  <mat-icon class="section-icon">data_object</mat-icon>
+                  Arguments
+                </div>
+                @if (hasSchemaProperties()) {
+                  <mat-button-toggle-group
+                    [value]="viewMode()"
+                    (change)="onViewModeChange($event.value)"
+                    class="view-toggle">
+                    <mat-button-toggle value="form">Form</mat-button-toggle>
+                    <mat-button-toggle value="json">JSON</mat-button-toggle>
+                  </mat-button-toggle-group>
+                }
               </div>
-              <textarea
-                class="json-editor"
-                [ngModel]="argsJson()"
-                (ngModelChange)="argsJson.set($event)"
-                (keydown.tab)="onTab($event)"
-                spellcheck="false"
-              ></textarea>
+
+              @if (viewMode() === 'form' && hasSchemaProperties()) {
+                <app-schema-form
+                  [schema]="mcp.selectedTool()!.inputSchema"
+                  [initialValues]="formInitialValues()"
+                  (valuesChange)="onFormValuesChange($event)"
+                />
+              } @else {
+                <textarea
+                  class="json-editor"
+                  [ngModel]="argsJson()"
+                  (ngModelChange)="argsJson.set($event)"
+                  (keydown.tab)="onTab($event)"
+                  spellcheck="false"
+                ></textarea>
+              }
             </div>
+
+            @if (validationErrors().length) {
+              <div class="validation-errors">
+                @for (err of validationErrors(); track err) {
+                  <div class="validation-error">
+                    <mat-icon class="validation-icon">warning</mat-icon>
+                    {{ err }}
+                  </div>
+                }
+              </div>
+            }
 
             <div class="call-actions">
               <button mat-flat-button class="call-btn"
@@ -82,7 +116,48 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
             </div>
 
             @if (mcp.lastCallResult(); as result) {
-              <app-tool-response [result]="result.data" [isError]="result.isError" />
+              <app-tool-response [result]="result.data" [isError]="result.isError" [durationMs]="mcp.lastCallResult()?.durationMs" />
+            }
+
+            @if (toolHistory().length) {
+              <div class="history-section">
+                <div class="history-header" (click)="historyExpanded.set(!historyExpanded())">
+                  <div class="section-label">
+                    <mat-icon class="section-icon">history</mat-icon>
+                    History ({{ toolHistory().length }})
+                  </div>
+                  <div class="history-actions">
+                    <button mat-icon-button class="history-clear-btn"
+                      (click)="clearToolHistory($event)"
+                      matTooltip="Clear history for this tool">
+                      <mat-icon>delete_sweep</mat-icon>
+                    </button>
+                    <mat-icon class="expand-icon">{{ historyExpanded() ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  </div>
+                </div>
+
+                @if (historyExpanded()) {
+                  <div class="history-list">
+                    @for (entry of toolHistory(); track entry.id) {
+                      <div class="history-entry" [class.error]="entry.isError" (click)="loadHistoryEntry(entry)">
+                        <div class="history-meta">
+                          <span class="history-time">{{ formatTime(entry.timestamp) }}</span>
+                          @if (entry.durationMs != null) {
+                            <span class="history-duration">{{ entry.durationMs }}ms</span>
+                          }
+                          <span class="history-args">{{ truncateArgs(entry.args) }}</span>
+                        </div>
+                        <button mat-icon-button class="replay-btn"
+                          (click)="replayEntry(entry, $event)"
+                          matTooltip="Replay this call"
+                          [disabled]="mcp.calling()">
+                          <mat-icon>replay</mat-icon>
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
             }
           </div>
         } @else {
@@ -182,6 +257,12 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
       gap: 8px;
     }
 
+    .section-label-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
     .section-label {
       font-family: 'JetBrains Mono', monospace;
       font-size: 10px;
@@ -198,6 +279,20 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
       font-size: 14px;
       width: 14px;
       height: 14px;
+    }
+
+    .view-toggle {
+      ::ng-deep .mat-button-toggle-label-content {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 0 10px;
+        line-height: 26px;
+      }
+
+      ::ng-deep .mat-button-toggle {
+        height: 26px;
+      }
     }
 
     .params-table {
@@ -248,6 +343,32 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
       }
     }
 
+    .validation-errors {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .validation-error {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--red, #e53935);
+      padding: 6px 10px;
+      background: var(--red-dim, rgba(229, 57, 53, 0.08));
+      border-radius: 6px;
+    }
+
+    .validation-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      color: var(--amber, #ffa726);
+      flex-shrink: 0;
+    }
+
     .call-actions {
       display: flex;
       gap: 8px;
@@ -290,13 +411,130 @@ import { DescriptionModalComponent } from '../description-modal/description-moda
       height: 36px;
       opacity: 0.4;
     }
+
+    /* History section */
+    .history-section {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+
+    .history-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 4px 0;
+      user-select: none;
+    }
+
+    .history-actions {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .history-clear-btn {
+      width: 28px !important;
+      height: 28px !important;
+      padding: 0 !important;
+
+      mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        color: var(--text-muted);
+      }
+    }
+
+    .expand-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: var(--text-muted);
+    }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin-top: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    .history-entry {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s;
+      gap: 8px;
+
+      &:hover {
+        background: var(--bg-hover);
+      }
+
+      &.error {
+        border-left: 2px solid var(--red, #e53935);
+      }
+    }
+
+    .history-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .history-time {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .history-duration {
+      color: var(--accent);
+      flex-shrink: 0;
+      font-size: 9px;
+    }
+
+    .history-args {
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .replay-btn {
+      width: 24px !important;
+      height: 24px !important;
+      padding: 0 !important;
+      flex-shrink: 0;
+
+      mat-icon {
+        font-size: 14px;
+        width: 14px;
+        height: 14px;
+        color: var(--accent);
+      }
+    }
   `],
 })
 export class ToolDetailComponent {
   private dialog = inject(MatDialog);
+  readonly history = inject(HistoryService);
 
   readonly isMac = navigator.platform.toUpperCase().includes('MAC');
   argsJson = signal('{}');
+  viewMode = signal<'form' | 'json'>('form');
+  historyExpanded = signal(false);
   private _lastToolName: string | null = null;
 
   @HostListener('window:keydown', ['$event'])
@@ -308,6 +546,19 @@ export class ToolDetailComponent {
       }
     }
   }
+
+  readonly validationErrors = computed(() => {
+    const tool = this.mcp.selectedTool();
+    if (!tool) return [];
+    const json = this.argsJson();
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(json);
+    } catch (e) {
+      return [`Invalid JSON: ${e instanceof Error ? e.message : String(e)}`];
+    }
+    return validateArgs(tool.inputSchema, parsed);
+  });
 
   readonly params = computed(() => {
     const tool = this.mcp.selectedTool();
@@ -322,6 +573,30 @@ export class ToolDetailComponent {
     }));
   });
 
+  readonly hasSchemaProperties = computed(() => {
+    const tool = this.mcp.selectedTool();
+    if (!tool) return false;
+    const props = tool.inputSchema?.properties;
+    return props != null && Object.keys(props).length > 0;
+  });
+
+  readonly formInitialValues = computed(() => {
+    const json = this.argsJson();
+    try {
+      return JSON.parse(json) as Record<string, unknown>;
+    } catch {
+      return {};
+    }
+  });
+
+  readonly toolHistory = computed(() => {
+    const tool = this.mcp.selectedTool();
+    if (!tool) return [];
+    // Access entries signal to track changes
+    this.history.entries();
+    return this.history.getEntriesForTool(tool.name);
+  });
+
   constructor(public mcp: McpService) {}
 
   ngDoCheck(): void {
@@ -331,8 +606,19 @@ export class ToolDetailComponent {
       this._lastToolName = currentName;
       if (tool) {
         this.argsJson.set(JSON.stringify(buildDefaultArgs(tool), null, 2));
+        // Default to form view if tool has schema properties, json otherwise
+        const hasProps = tool.inputSchema?.properties && Object.keys(tool.inputSchema.properties).length > 0;
+        this.viewMode.set(hasProps ? 'form' : 'json');
       }
     }
+  }
+
+  onViewModeChange(mode: 'form' | 'json'): void {
+    this.viewMode.set(mode);
+  }
+
+  onFormValuesChange(values: Record<string, unknown>): void {
+    this.argsJson.set(JSON.stringify(values, null, 2));
   }
 
   callTool(): void {
@@ -365,5 +651,35 @@ export class ToolDetailComponent {
       width: '680px',
       maxHeight: '80vh',
     });
+  }
+
+  // History methods
+  formatTime(date: Date): string {
+    return date.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  truncateArgs(args: string): string {
+    const trimmed = args.replace(/\s+/g, ' ').trim();
+    return trimmed.length > 50 ? trimmed.substring(0, 50) + '...' : trimmed;
+  }
+
+  loadHistoryEntry(entry: HistoryEntry): void {
+    this.argsJson.set(entry.args);
+    this.viewMode.set('json');
+  }
+
+  replayEntry(entry: HistoryEntry, event: Event): void {
+    event.stopPropagation();
+    this.argsJson.set(entry.args);
+    this.viewMode.set('json');
+    this.callTool();
+  }
+
+  clearToolHistory(event: Event): void {
+    event.stopPropagation();
+    const tool = this.mcp.selectedTool();
+    if (tool) {
+      this.history.clearForTool(tool.name);
+    }
   }
 }

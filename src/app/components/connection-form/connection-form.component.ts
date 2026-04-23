@@ -4,13 +4,16 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatRadioModule } from '@angular/material/radio';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSelectModule } from '@angular/material/select';
 import { McpService } from '../../services/mcp.service';
 import { AuthService } from '../../services/auth.service';
+import { ProfileService } from '../../services/profile.service';
+import { AuthMode } from '../../models/mcp.models';
 
 @Component({
   selector: 'app-connection-form',
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatIconModule, MatRadioModule, MatTooltipModule],
+  imports: [FormsModule, MatButtonModule, MatIconModule, MatRadioModule, MatTooltipModule, MatSelectModule],
   template: `
     <div class="form">
       <div class="url-wrap">
@@ -26,7 +29,48 @@ import { AuthService } from '../../services/auth.service';
           [disabled]="mcp.connected()"
           spellcheck="false"
         />
+        @if (!mcp.connected()) {
+          @if (savingProfile()) {
+            <input
+              class="profile-name-input"
+              type="text"
+              placeholder="Profile name..."
+              [ngModel]="profileName()"
+              (ngModelChange)="profileName.set($event)"
+              (keydown.enter)="saveProfile()"
+              (keydown.escape)="savingProfile.set(false)"
+              spellcheck="false"
+              autofocus
+            />
+            <button mat-icon-button class="save-confirm-btn" (click)="saveProfile()" matTooltip="Save profile">
+              <mat-icon>check</mat-icon>
+            </button>
+          } @else {
+            <button mat-icon-button class="save-btn" (click)="savingProfile.set(true)" matTooltip="Save as profile">
+              <mat-icon>bookmark_add</mat-icon>
+            </button>
+          }
+        }
       </div>
+
+      @if (profileService.profiles().length > 0) {
+        <mat-select
+          class="profile-select"
+          placeholder="Profiles"
+          [disabled]="mcp.connected()"
+          (selectionChange)="loadProfile($event.value)">
+          @for (p of profileService.profiles(); track p.name) {
+            <mat-option [value]="p.name">
+              <span class="profile-option">
+                <span>{{ p.name }}</span>
+                <button mat-icon-button class="profile-delete-btn" (click)="deleteProfile(p.name, $event)">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </span>
+            </mat-option>
+          }
+        </mat-select>
+      }
 
       <mat-radio-group
         class="auth-group"
@@ -136,6 +180,74 @@ import { AuthService } from '../../services/auth.service';
 
       &:disabled { opacity: 0.5; }
       &::placeholder { color: var(--text-muted); }
+    }
+
+    .save-btn, .save-confirm-btn {
+      width: 24px !important;
+      height: 24px !important;
+      line-height: 24px !important;
+      flex-shrink: 0;
+
+      mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        color: var(--text-muted);
+      }
+
+      &:hover mat-icon { color: var(--accent); }
+    }
+
+    .profile-name-input {
+      width: 100px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      padding: 3px 6px;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      background: var(--bg-input);
+      color: var(--text-primary);
+      outline: none;
+      flex-shrink: 0;
+    }
+
+    .profile-select {
+      flex-shrink: 0;
+      width: 120px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+
+      ::ng-deep {
+        .mat-mdc-select-trigger {
+          height: 30px;
+        }
+        .mat-mdc-select-value-text {
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 11px;
+        }
+      }
+    }
+
+    .profile-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .profile-delete-btn {
+      width: 20px !important;
+      height: 20px !important;
+      line-height: 20px !important;
+
+      mat-icon {
+        font-size: 12px;
+        width: 12px;
+        height: 12px;
+        color: var(--text-muted);
+      }
+
+      &:hover mat-icon { color: var(--red); }
     }
 
     .auth-group {
@@ -253,10 +365,13 @@ import { AuthService } from '../../services/auth.service';
 })
 export class ConnectionFormComponent {
   urlValue = signal('');
+  savingProfile = signal(false);
+  profileName = signal('');
 
   constructor(
     public mcp: McpService,
     public auth: AuthService,
+    public profileService: ProfileService,
   ) {
     this.urlValue.set(this.mcp.mcpUrl());
   }
@@ -270,5 +385,27 @@ export class ConnectionFormComponent {
 
   startOAuth(): void {
     this.auth.startOAuthFlow(this.mcp.mcpUrl());
+  }
+
+  saveProfile(): void {
+    const name = this.profileName().trim();
+    if (!name) return;
+    this.profileService.addProfile(name, this.urlValue(), this.auth.authMode());
+    this.savingProfile.set(false);
+    this.profileName.set('');
+  }
+
+  loadProfile(name: string): void {
+    const profile = this.profileService.profiles().find(p => p.name === name);
+    if (profile) {
+      this.urlValue.set(profile.mcpUrl);
+      this.mcp.updateMcpUrl(profile.mcpUrl);
+      this.auth.setAuthMode(profile.authMode as AuthMode);
+    }
+  }
+
+  deleteProfile(name: string, event: Event): void {
+    event.stopPropagation();
+    this.profileService.deleteProfile(name);
   }
 }
