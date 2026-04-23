@@ -11,6 +11,12 @@ import { ToolResponseComponent } from '../tool-response/tool-response.component'
 import { DescriptionModalComponent } from '../description-modal/description-modal.component';
 import { SchemaFormComponent } from '../schema-form/schema-form.component';
 
+type CachedToolState = {
+  argsJson: string;
+  viewMode: 'form' | 'json';
+  result: { data: unknown; isError: boolean; durationMs?: number } | null;
+};
+
 @Component({
   selector: 'app-tool-detail',
   standalone: true,
@@ -112,6 +118,10 @@ import { SchemaFormComponent } from '../schema-form/schema-form.component';
               <button mat-stroked-button (click)="formatJson()" matTooltip="Format JSON">
                 <mat-icon>auto_fix_high</mat-icon>
                 Format
+              </button>
+              <button mat-stroked-button (click)="resetTool()" matTooltip="Clear inputs and output">
+                <mat-icon>restart_alt</mat-icon>
+                Reset
               </button>
             </div>
 
@@ -536,6 +546,7 @@ export class ToolDetailComponent {
   viewMode = signal<'form' | 'json'>('form');
   historyExpanded = signal(false);
   private _lastToolName: string | null = null;
+  private readonly toolStateCache = new Map<string, CachedToolState>();
 
   @HostListener('window:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
@@ -602,13 +613,28 @@ export class ToolDetailComponent {
   ngDoCheck(): void {
     const tool = this.mcp.selectedTool();
     const currentName = tool?.name || null;
-    if (currentName && currentName !== this._lastToolName) {
+    if (currentName !== this._lastToolName) {
+      // Persist current args/viewMode for the departing tool (result was already cached by callTool)
+      if (this._lastToolName) {
+        const existing = this.toolStateCache.get(this._lastToolName);
+        this.toolStateCache.set(this._lastToolName, {
+          argsJson: this.argsJson(),
+          viewMode: this.viewMode(),
+          result: existing?.result ?? null,
+        });
+      }
       this._lastToolName = currentName;
-      if (tool) {
-        this.argsJson.set(JSON.stringify(buildDefaultArgs(tool), null, 2));
-        // Default to form view if tool has schema properties, json otherwise
-        const hasProps = tool.inputSchema?.properties && Object.keys(tool.inputSchema.properties).length > 0;
-        this.viewMode.set(hasProps ? 'form' : 'json');
+      if (tool && currentName) {
+        const cached = this.toolStateCache.get(currentName);
+        if (cached) {
+          this.argsJson.set(cached.argsJson);
+          this.viewMode.set(cached.viewMode);
+          this.mcp.lastCallResult.set(cached.result);
+        } else {
+          this.argsJson.set(JSON.stringify(buildDefaultArgs(tool), null, 2));
+          const hasProps = tool.inputSchema?.properties && Object.keys(tool.inputSchema.properties).length > 0;
+          this.viewMode.set(hasProps ? 'form' : 'json');
+        }
       }
     }
   }
@@ -621,10 +647,28 @@ export class ToolDetailComponent {
     this.argsJson.set(JSON.stringify(values, null, 2));
   }
 
-  callTool(): void {
+  async callTool(): Promise<void> {
     const tool = this.mcp.selectedTool();
     if (tool) {
-      this.mcp.callTool(tool.name, this.argsJson());
+      await this.mcp.callTool(tool.name, this.argsJson());
+      // Cache the result so it survives switching away from this tool and back
+      const existing = this.toolStateCache.get(tool.name);
+      this.toolStateCache.set(tool.name, {
+        argsJson: existing?.argsJson ?? this.argsJson(),
+        viewMode: existing?.viewMode ?? this.viewMode(),
+        result: this.mcp.lastCallResult(),
+      });
+    }
+  }
+
+  resetTool(): void {
+    const tool = this.mcp.selectedTool();
+    if (tool) {
+      this.toolStateCache.delete(tool.name);
+      this.argsJson.set(JSON.stringify(buildDefaultArgs(tool), null, 2));
+      const hasProps = tool.inputSchema?.properties && Object.keys(tool.inputSchema.properties).length > 0;
+      this.viewMode.set(hasProps ? 'form' : 'json');
+      this.mcp.lastCallResult.set(null);
     }
   }
 
