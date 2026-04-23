@@ -801,7 +801,7 @@ export class ToolDetailComponent {
   readonly toolRawJson = computed(() => {
     const tool = this.mcp.selectedTool();
     if (!tool) return '';
-    const { name, description, ...rest } = tool as Record<string, unknown>;
+    const { name, description, ...rest } = tool as unknown as Record<string, unknown>;
     return JSON.stringify(rest, null, 2);
   });
 
