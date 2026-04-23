@@ -147,9 +147,11 @@ export class McpService {
     return groups
       .map(group => {
         const filtered = group.items.filter(item => {
-          const name = item.tool.name.toLowerCase();
-          const desc = (item.tool.description || '').toLowerCase();
-          return name.includes(query) || desc.includes(query);
+          const t = item.tool;
+          const name = t.name.toLowerCase();
+          const desc = (t.description || '').toLowerCase();
+          const tags = (t.tags ?? t._meta?.['fastmcp']?.tags ?? []).join(' ').toLowerCase();
+          return name.includes(query) || desc.includes(query) || tags.includes(query);
         });
         if (filtered.length === 0) return null;
         return { ...group, items: filtered };
