@@ -20,6 +20,10 @@ export interface McpToolAnnotations {
   destructiveHint?: boolean;
   idempotentHint?: boolean;
   openWorldHint?: boolean;
+  read_only_hint?: boolean;
+  destructive_hint?: boolean;
+  idempotent_hint?: boolean;
+  open_world_hint?: boolean;
 }
 
 export interface McpTool {

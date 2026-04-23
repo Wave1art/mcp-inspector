@@ -790,11 +790,15 @@ export class ToolDetailComponent {
     const ann = this.mcp.selectedTool()?.annotations;
     if (!ann) return [];
     const entries: { label: string; value: string | boolean }[] = [];
+    const readOnly = ann.readOnlyHint ?? ann.read_only_hint;
+    const destructive = ann.destructiveHint ?? ann.destructive_hint;
+    const idempotent = ann.idempotentHint ?? ann.idempotent_hint;
+    const openWorld = ann.openWorldHint ?? ann.open_world_hint;
     if (ann.title != null) entries.push({ label: 'Title', value: ann.title });
-    if (ann.readOnlyHint != null) entries.push({ label: 'Read Only', value: ann.readOnlyHint });
-    if (ann.destructiveHint != null) entries.push({ label: 'Destructive', value: ann.destructiveHint });
-    if (ann.idempotentHint != null) entries.push({ label: 'Idempotent', value: ann.idempotentHint });
-    if (ann.openWorldHint != null) entries.push({ label: 'Open World', value: ann.openWorldHint });
+    if (readOnly != null) entries.push({ label: 'Read Only', value: readOnly });
+    if (destructive != null) entries.push({ label: 'Destructive', value: destructive });
+    if (idempotent != null) entries.push({ label: 'Idempotent', value: idempotent });
+    if (openWorld != null) entries.push({ label: 'Open World', value: openWorld });
     return entries;
   });
 
