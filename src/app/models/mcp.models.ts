@@ -18,6 +18,7 @@ export interface McpTool {
   name: string;
   description?: string;
   inputSchema?: JsonSchema;
+  tags?: string[];
   _meta?: { _fastmcp?: { tags?: string[] } };
 }
 
