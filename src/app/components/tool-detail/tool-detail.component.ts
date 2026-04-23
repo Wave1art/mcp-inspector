@@ -5,6 +5,7 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatTabsModule } from '@angular/material/tabs';
 import { McpService, buildDefaultArgs, formatType, validateArgs } from '../../services/mcp.service';
 import { HistoryService, HistoryEntry } from '../../services/history.service';
 import { ToolResponseComponent } from '../tool-response/tool-response.component';
@@ -20,7 +21,7 @@ type CachedToolState = {
 @Component({
   selector: 'app-tool-detail',
   standalone: true,
-  imports: [FormsModule, MatButtonModule, MatButtonToggleModule, MatIconModule, MatTooltipModule, MatDialogModule, ToolResponseComponent, SchemaFormComponent],
+  imports: [FormsModule, MatButtonModule, MatButtonToggleModule, MatIconModule, MatTooltipModule, MatDialogModule, MatTabsModule, ToolResponseComponent, SchemaFormComponent],
   template: `
     <div class="panel">
       <div class="panel-header">
@@ -42,25 +43,84 @@ type CachedToolState = {
               </div>
             }
 
-            @if (params().length) {
-              <div class="schema-section">
-                <div class="section-label">
-                  <mat-icon class="section-icon">schema</mat-icon>
-                  Parameters
-                </div>
-                <div class="params-table">
-                  @for (p of params(); track p.name) {
-                    <div class="param-row">
-                      <span class="param-name">{{ p.name }}</span>
-                      <span class="param-type">{{ p.type }}</span>
-                      @if (p.required) {
-                        <span class="param-required">required</span>
-                      }
-                    </div>
-                  }
-                </div>
-              </div>
-            }
+            <div class="meta-tab-section">
+              <mat-tab-group animationDuration="0ms" class="tool-tab-group">
+
+                <mat-tab>
+                  <ng-template mat-tab-label>
+                    Parameters
+                    @if (params().length) {
+                      <span class="tab-badge">{{ params().length }}</span>
+                    }
+                  </ng-template>
+                  <div class="tab-content">
+                    @if (params().length) {
+                      <div class="params-table">
+                        @for (p of params(); track p.name) {
+                          <div class="param-row">
+                            <span class="param-name">{{ p.name }}</span>
+                            <span class="param-type">{{ p.type }}</span>
+                            @if (p.required) {
+                              <span class="param-required">required</span>
+                            }
+                          </div>
+                        }
+                      </div>
+                    } @else {
+                      <div class="tab-empty">No parameters</div>
+                    }
+                  </div>
+                </mat-tab>
+
+                <mat-tab>
+                  <ng-template mat-tab-label>
+                    Tags
+                    @if (toolTags().length) {
+                      <span class="tab-badge">{{ toolTags().length }}</span>
+                    }
+                  </ng-template>
+                  <div class="tab-content">
+                    @if (toolTags().length) {
+                      <div class="tags-list">
+                        @for (tag of toolTags(); track tag) {
+                          <span class="tag">{{ tag }}</span>
+                        }
+                      </div>
+                    } @else {
+                      <div class="tab-empty">No tags</div>
+                    }
+                  </div>
+                </mat-tab>
+
+                <mat-tab label="Annotations">
+                  <div class="tab-content">
+                    @if (toolAnnotations().length) {
+                      <div class="annotations-table">
+                        @for (a of toolAnnotations(); track a.label) {
+                          <div class="annotation-row">
+                            <span class="ann-label">{{ a.label }}</span>
+                            <span class="ann-value"
+                              [class.bool-true]="a.value === true"
+                              [class.bool-false]="a.value === false">
+                              {{ a.value }}
+                            </span>
+                          </div>
+                        }
+                      </div>
+                    } @else {
+                      <div class="tab-empty">No annotations</div>
+                    }
+                  </div>
+                </mat-tab>
+
+                <mat-tab label="Raw">
+                  <div class="tab-content">
+                    <pre class="raw-json">{{ toolRawJson() }}</pre>
+                  </div>
+                </mat-tab>
+
+              </mat-tab-group>
+            </div>
 
             <div class="editor-section">
               <div class="section-label-row">
@@ -119,7 +179,7 @@ type CachedToolState = {
                 <mat-icon>auto_fix_high</mat-icon>
                 Format
               </button>
-              <button mat-stroked-button (click)="resetTool()" matTooltip="Clear inputs and output">
+              <button mat-stroked-button (click)="resetTool()" matTooltip="Clear inputs and output" [disabled]="!canReset()">
                 <mat-icon>restart_alt</mat-icon>
                 Reset
               </button>
@@ -261,10 +321,130 @@ type CachedToolState = {
       }
     }
 
-    .schema-section, .editor-section {
+    .editor-section {
       display: flex;
       flex-direction: column;
       gap: 8px;
+    }
+
+    .meta-tab-section {
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+
+    .tool-tab-group {
+      ::ng-deep {
+        .mat-mdc-tab-header {
+          background: var(--panel-header-bg);
+          border-bottom: 1px solid var(--border);
+        }
+        .mat-mdc-tab {
+          min-width: 0;
+          padding: 0 12px;
+          height: 34px;
+          font-family: 'JetBrains Mono', monospace;
+          font-size: 10px;
+          font-weight: 600;
+          letter-spacing: 0.5px;
+          opacity: 1;
+        }
+        .mat-mdc-tab .mdc-tab__text-label {
+          color: var(--text-muted);
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+        .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+          color: var(--accent);
+        }
+        .mdc-tab-indicator__content--underline {
+          border-color: var(--accent);
+        }
+        .mat-mdc-tab-body-content {
+          overflow: hidden;
+        }
+      }
+    }
+
+    .tab-content {
+      padding: 10px;
+    }
+
+    .tab-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 9px;
+      font-weight: 600;
+      background: var(--accent-dim);
+      color: var(--accent);
+      padding: 1px 5px;
+      border-radius: 8px;
+      line-height: 1.4;
+    }
+
+    .tab-empty {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 4px 2px;
+      font-style: italic;
+    }
+
+    .tags-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .tag {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--accent-dim);
+      color: var(--accent);
+    }
+
+    .annotations-table {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .annotation-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 5px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      border-bottom: 1px solid var(--border);
+      &:last-child { border-bottom: none; }
+    }
+
+    .ann-label {
+      color: var(--text-muted);
+      font-size: 10px;
+      min-width: 100px;
+    }
+
+    .ann-value {
+      color: var(--text-primary);
+      &.bool-true { color: var(--green, #66bb6a); }
+      &.bool-false { color: var(--red, #e53935); }
+    }
+
+    .raw-json {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      word-break: break-all;
+      margin: 0;
+      max-height: 240px;
+      overflow-y: auto;
+      scrollbar-width: thin;
     }
 
     .section-label-row {
@@ -597,6 +777,44 @@ export class ToolDetailComponent {
       return JSON.parse(json) as Record<string, unknown>;
     } catch {
       return {};
+    }
+  });
+
+  readonly toolTags = computed(() => {
+    const tool = this.mcp.selectedTool();
+    if (!tool) return [];
+    return tool.tags ?? tool._meta?.['fastmcp']?.tags ?? [];
+  });
+
+  readonly toolAnnotations = computed((): { label: string; value: string | boolean }[] => {
+    const ann = this.mcp.selectedTool()?.annotations;
+    if (!ann) return [];
+    const entries: { label: string; value: string | boolean }[] = [];
+    if (ann.title != null) entries.push({ label: 'Title', value: ann.title });
+    if (ann.readOnlyHint != null) entries.push({ label: 'Read Only', value: ann.readOnlyHint });
+    if (ann.destructiveHint != null) entries.push({ label: 'Destructive', value: ann.destructiveHint });
+    if (ann.idempotentHint != null) entries.push({ label: 'Idempotent', value: ann.idempotentHint });
+    if (ann.openWorldHint != null) entries.push({ label: 'Open World', value: ann.openWorldHint });
+    return entries;
+  });
+
+  readonly toolRawJson = computed(() => {
+    const tool = this.mcp.selectedTool();
+    if (!tool) return '';
+    const { name, description, ...rest } = tool as Record<string, unknown>;
+    return JSON.stringify(rest, null, 2);
+  });
+
+  readonly canReset = computed(() => {
+    const tool = this.mcp.selectedTool();
+    if (!tool) return false;
+    if (this.mcp.lastCallResult() !== null) return true;
+    const defaults = buildDefaultArgs(tool);
+    try {
+      const current = JSON.parse(this.argsJson());
+      return JSON.stringify(current) !== JSON.stringify(defaults);
+    } catch {
+      return true;
     }
   });
 
