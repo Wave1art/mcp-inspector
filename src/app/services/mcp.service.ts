@@ -425,7 +425,6 @@ export class McpService {
         nextCursor?: string;
       };
       const batch = result.tools || [];
-      console.log('[tools/list] raw batch:', JSON.stringify(batch, null, 2));
       allTools.push(...batch);
 
       if (result.nextCursor) {

@@ -413,7 +413,7 @@ export class ToolsListComponent {
     return tool.description.split('\n')[0].slice(0, 100);
   }
 
-  getTags(tool: { tags?: string[]; _meta?: { _fastmcp?: { tags?: string[] } } }): string[] {
-    return tool.tags ?? tool._meta?._fastmcp?.tags ?? [];
+  getTags(tool: { tags?: string[]; _meta?: { fastmcp?: { tags?: string[] } } }): string[] {
+    return tool.tags ?? tool._meta?.fastmcp?.tags ?? [];
   }
 }
