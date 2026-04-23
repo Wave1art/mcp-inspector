@@ -14,12 +14,26 @@ export interface JsonSchema {
   required?: string[];
 }
 
+export interface McpToolAnnotations {
+  title?: string;
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+  read_only_hint?: boolean;
+  destructive_hint?: boolean;
+  idempotent_hint?: boolean;
+  open_world_hint?: boolean;
+}
+
 export interface McpTool {
   name: string;
   description?: string;
   inputSchema?: JsonSchema;
+  outputSchema?: Record<string, unknown>;
   tags?: string[];
-  _meta?: { _fastmcp?: { tags?: string[] } };
+  annotations?: McpToolAnnotations;
+  _meta?: { fastmcp?: { tags?: string[] }; [key: string]: unknown };
 }
 
 export interface McpServerInfo {
